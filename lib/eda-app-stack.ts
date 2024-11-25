@@ -21,15 +21,15 @@ export class EDAAppStack extends cdk.Stack {
       publicReadAccess: false,
     });
 
-    // Creating image table
+  // Creating image table------------------------------------------------------------ 
     const imagesTable = new dynamodb.Table(this, "ImageTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      partitionKey: { name: "id", type: dynamodb.AttributeType.NUMBER },
+      partitionKey: { name: "fileName", type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       tableName: "Images",
     });
 
-    // Integration infrastructure
+  // Integration infrastructure------------------------------------------------------
 
   const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {
     receiveMessageWaitTime: cdk.Duration.seconds(5),
@@ -43,7 +43,7 @@ export class EDAAppStack extends cdk.Stack {
     receiveMessageWaitTime: cdk.Duration.seconds(10),
   });
 
-  // Lambda functions
+  // Lambda functions----------------------------------------------------------------
 
   const processImageFn = new lambdanode.NodejsFunction(
     this,
@@ -63,7 +63,7 @@ export class EDAAppStack extends cdk.Stack {
     entry: `${__dirname}/../lambdas/mailer.ts`,
   });
 
-  // S3 --> SQS
+  // S3 --> SQS-------------------------------------------------------------------
   imagesBucket.addEventNotification(
     s3.EventType.OBJECT_CREATED,
     new s3n.SnsDestination(newImageTopic)  // Changed
@@ -77,7 +77,7 @@ export class EDAAppStack extends cdk.Stack {
     new subs.SqsSubscription(mailerQ)
   );
 
- // SQS --> Lambda
+ // SQS --> Lambda----------------------------------------------------------------
   const newImageEventSource = new events.SqsEventSource(imageProcessQueue, {
     batchSize: 5,
     maxBatchingWindow: cdk.Duration.seconds(5),
@@ -91,8 +91,8 @@ export class EDAAppStack extends cdk.Stack {
   processImageFn.addEventSource(newImageEventSource);
   mailerFn.addEventSource(newImageMailEventSource);
 
-  // Permissions
-
+  // Permissions-------------------------------------------------------------------
+  imagesTable.grantWriteData(processImageFn);
   imagesBucket.grantRead(processImageFn);
   mailerFn.addToRolePolicy(
     new iam.PolicyStatement({
@@ -106,7 +106,11 @@ export class EDAAppStack extends cdk.Stack {
     })
   );
 
-  // Output
+  // Environment variables----------------------------------------------------------
+  processImageFn.addEnvironment('DYNAMODB_TABLE', imagesTable.tableName);
+  processImageFn.addEnvironment('REGION', this.region);
+
+  // Output------------------------------------------------------------------------
   
   new cdk.CfnOutput(this, "bucketName", {
     value: imagesBucket.bucketName,

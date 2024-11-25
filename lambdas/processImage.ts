@@ -1,41 +1,68 @@
-/* eslint-disable import/extensions, import/no-absolute-path */
 import { SQSHandler } from "aws-lambda";
-import {
-  GetObjectCommand,
-  PutObjectCommandInput,
-  GetObjectCommandInput,
-  S3Client,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
-const s3 = new S3Client();
+const tableName = process.env.DYNAMODB_TABLE;
+const region = process.env.REGION;
+
+if (!tableName || !region) {
+  throw new Error("Environment variables DYNAMODB_TABLE and REGION must be set.");
+}
 
 export const handler: SQSHandler = async (event) => {
-  console.log("Event ", JSON.stringify(event));
+  const ddbDocClient = createDDbDocClient();
+
   for (const record of event.Records) {
-    const recordBody = JSON.parse(record.body);        // Parse SQS message
-    const snsMessage = JSON.parse(recordBody.Message); // Parse SNS message
+    const recordBody = JSON.parse(record.body);
+    const snsMessage = JSON.parse(recordBody.Message);
 
     if (snsMessage.Records) {
-      console.log("Record body ", JSON.stringify(snsMessage));
       for (const messageRecord of snsMessage.Records) {
         const s3e = messageRecord.s3;
-        const srcBucket = s3e.bucket.name;
-        // Object key may have spaces or unicode non-ASCII characters.
         const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
-        let origimage = null;
+
+        // Extract the original file name from the key
+        const originalFileName = srcKey.split("/").pop();
+
         try {
-          // Download the image from the S3 source bucket.
-          const params: GetObjectCommandInput = {
-            Bucket: srcBucket,
-            Key: srcKey,
-          };
-          origimage = await s3.send(new GetObjectCommand(params));
-          // Process the image ......
+          // Attempt to write the record to DynamoDB
+          await ddbDocClient.send(
+            new PutCommand({
+              TableName: tableName,
+              Item: { fileName: originalFileName },
+            })
+          );
+          console.log(`Recorded image: ${originalFileName}`);
         } catch (error) {
-          console.log(error);
+          // Detailed logging of the error
+          console.error(`Failed to record image: ${originalFileName}`);
+          if (error instanceof Error) {
+            console.error('Error Details:', {
+              message: error.message,
+              stack: error.stack,
+              name: error.name,
+              originalFileName,
+              srcKey,
+            });
+          } else {
+            console.error('Unknown error:', error);
+          }
         }
       }
     }
   }
 };
+
+function createDDbDocClient() {
+  const ddbClient = new DynamoDBClient({ region: process.env.REGION });
+  const marshallOptions = {
+    convertEmptyValues: true,
+    removeUndefinedValues: true,
+    convertClassInstanceToMap: true,
+  };
+  const unmarshallOptions = {
+    wrapNumbers: false,
+  };
+  const translateConfig = { marshallOptions, unmarshallOptions };
+  return DynamoDBDocumentClient.from(ddbClient, translateConfig);
+}

@@ -4,8 +4,8 @@
         "SignUpBody": {
             "additionalProperties": false,
             "properties": {
-                "id": {
-                    "type": "number"
+                "fileName": {
+                    "type": "string"
                 },
                 "imageUrl": {
                     "type": "string"

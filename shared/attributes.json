@@ -1,0 +1,14 @@
+{
+  "metadata_type": {
+    "DataType": "String",
+    "StringValue": "Caption"
+  },
+  "metadata_date": {
+    "DataType": "String",
+    "StringValue": "Date"
+  },
+  "metadata_name": {
+    "DataType": "String",
+    "StringValue": "Name"
+  }
+}

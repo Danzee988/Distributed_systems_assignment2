@@ -44,6 +44,10 @@ export class EDAAppStack extends cdk.Stack {
     displayName: "New Image topic",
   }); 
 
+  const updateImageTopic = new sns.Topic(this, "UpdateImageTopic", {
+    displayName: "Update Image topic",
+  });
+
   const mailerQ = new sqs.Queue(this, "mailer-queue", {
     receiveMessageWaitTime: cdk.Duration.seconds(10),
   });
@@ -100,6 +104,10 @@ export class EDAAppStack extends cdk.Stack {
   newImageTopic.addSubscription(
     new subs.SqsSubscription(mailerQ)
   );
+
+  updateImageTopic.addSubscription(
+    new subs.SqsSubscription(metadataQueue)
+  )
 
  // SQS --> Lambda----------------------------------------------------------------
   const newImageEventSource = new events.SqsEventSource(imageProcessQueue, {

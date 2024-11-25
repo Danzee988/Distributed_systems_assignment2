@@ -53,14 +53,23 @@ export class EDAAppStack extends cdk.Stack {
       entry: `${__dirname}/../lambdas/processImage.ts`,
       timeout: cdk.Duration.seconds(15),
       memorySize: 128,
+      deadLetterQueue: mailerQ, 
+      deadLetterQueueEnabled: true,
     }
   );
 
-  const mailerFn = new lambdanode.NodejsFunction(this, "mailer-function", {
+  const mailerImageAddedFn = new lambdanode.NodejsFunction(this, "MailerImageAddedFn", {
     runtime: lambda.Runtime.NODEJS_16_X,
     memorySize: 1024,
     timeout: cdk.Duration.seconds(3),
-    entry: `${__dirname}/../lambdas/mailer.ts`,
+    entry: `${__dirname}/../lambdas/mailerImageAdded.ts`,
+  });
+
+  const mailerImageRejectedFn = new lambdanode.NodejsFunction(this, "MailerImageRejectedFn", {
+    runtime: lambda.Runtime.NODEJS_16_X,
+    memorySize: 1024,
+    timeout: cdk.Duration.seconds(3),
+    entry: `${__dirname}/../lambdas/mailerImageRejected.ts`,
   });
 
   // S3 --> SQS-------------------------------------------------------------------
@@ -89,12 +98,26 @@ export class EDAAppStack extends cdk.Stack {
   }); 
 
   processImageFn.addEventSource(newImageEventSource);
-  mailerFn.addEventSource(newImageMailEventSource);
+  mailerImageAddedFn.addEventSource(newImageMailEventSource);
+  mailerImageRejectedFn.addEventSource(newImageMailEventSource);
 
   // Permissions-------------------------------------------------------------------
   imagesTable.grantWriteData(processImageFn);
   imagesBucket.grantRead(processImageFn);
-  mailerFn.addToRolePolicy(
+
+  mailerImageAddedFn.addToRolePolicy(
+    new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:SendTemplatedEmail",
+      ],
+      resources: ["*"],
+    })
+  );
+
+  mailerImageRejectedFn.addToRolePolicy(
     new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [

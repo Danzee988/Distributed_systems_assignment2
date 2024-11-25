@@ -35,6 +35,11 @@ export class EDAAppStack extends cdk.Stack {
     receiveMessageWaitTime: cdk.Duration.seconds(5),
   });
 
+  // Create the SQS queue
+  const metadataQueue = new sqs.Queue(this, "MetadataUpdatesQueue", {
+    receiveMessageWaitTime: cdk.Duration.seconds(5),
+  });
+
   const newImageTopic = new sns.Topic(this, "NewImageTopic", {
     displayName: "New Image topic",
   }); 
@@ -72,6 +77,16 @@ export class EDAAppStack extends cdk.Stack {
     entry: `${__dirname}/../lambdas/mailerImageRejected.ts`,
   });
 
+  const updateTableFn = new lambdanode.NodejsFunction(this, "UpdateTableFn", {
+    runtime: lambda.Runtime.NODEJS_18_X,
+    entry: `${__dirname}/../lambdas/updateTable.ts`,
+    timeout: cdk.Duration.seconds(10),
+    environment: {
+      DYNAMODB_TABLE: imagesTable.tableName,
+      REGION: this.region,
+    },
+  });
+
   // S3 --> SQS-------------------------------------------------------------------
   imagesBucket.addEventNotification(
     s3.EventType.OBJECT_CREATED,
@@ -97,6 +112,11 @@ export class EDAAppStack extends cdk.Stack {
     maxBatchingWindow: cdk.Duration.seconds(5),
   }); 
 
+  updateTableFn.addEventSource(new events.SqsEventSource(metadataQueue, {
+    batchSize: 5,
+    maxBatchingWindow: cdk.Duration.seconds(5),
+  }));
+
   processImageFn.addEventSource(newImageEventSource);
   mailerImageAddedFn.addEventSource(newImageMailEventSource);
   mailerImageRejectedFn.addEventSource(newImageMailEventSource);
@@ -104,6 +124,7 @@ export class EDAAppStack extends cdk.Stack {
   // Permissions-------------------------------------------------------------------
   imagesTable.grantWriteData(processImageFn);
   imagesBucket.grantRead(processImageFn);
+  imagesTable.grantWriteData(updateTableFn);
 
   mailerImageAddedFn.addToRolePolicy(
     new iam.PolicyStatement({

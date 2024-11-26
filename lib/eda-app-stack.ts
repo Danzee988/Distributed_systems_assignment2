@@ -53,7 +53,6 @@ export class EDAAppStack extends cdk.Stack {
   });
 
   // Lambda functions----------------------------------------------------------------
-
   const processImageFn = new lambdanode.NodejsFunction(                       // Create a Lambda function
     this,
     "ProcessImageFn",
@@ -64,6 +63,11 @@ export class EDAAppStack extends cdk.Stack {
       memorySize: 128,                                                        // Set the memory size
       deadLetterQueue: mailerQ,                                               // Set the dead letter queue
       deadLetterQueueEnabled: true,                                           // Enable the dead letter queue
+      environment: {
+        DYNAMODB_TABLE: imagesTable.tableName,                                // Set the environment variables
+        REGION: this.region,                                                  // Set the region
+        MAILER_QUEUE_URL: mailerQ.queueUrl,                                   // Set the mailer queue URL
+      },
     }
   );
 
@@ -166,6 +170,7 @@ export class EDAAppStack extends cdk.Stack {
   // Environment variables----------------------------------------------------------
   processImageFn.addEnvironment('DYNAMODB_TABLE', imagesTable.tableName);
   processImageFn.addEnvironment('REGION', this.region);
+  processImageFn.addEnvironment('MAILER_QUEUE_URL', mailerQ.queueUrl);
 
   // Output------------------------------------------------------------------------
   

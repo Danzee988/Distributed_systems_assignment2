@@ -1,6 +1,6 @@
 import { SQSHandler } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import path = require("path");
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
@@ -17,6 +17,7 @@ const sqsClient = new SQSClient({ region });
 export const handler: SQSHandler = async (event) => {
   const ddbDocClient = createDDbDocClient();
 
+  // Log the incoming event for debugging purposes
   for (const record of event.Records) {
     const recordBody = JSON.parse(record.body);
     const snsMessage = JSON.parse(recordBody.Message);
@@ -26,51 +27,54 @@ export const handler: SQSHandler = async (event) => {
         const s3e = messageRecord.s3;
         const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
 
-          // Validate the file type based on the file extension
-          const fileExtension = path.extname(srcKey).toLowerCase();
-          const validExtensions = [".jpeg", ".png"];
+        // Validate the file type based on the file extension
+        const fileExtension = path.extname(srcKey).toLowerCase();
+        const validExtensions = [".jpeg", ".png"];
 
-          if (!validExtensions.includes(fileExtension)) {
-            // If the file is not a .jpeg or .png, throw an error to send the message to DLQ
-            const errorMessage = `Invalid file type: ${fileExtension}. Only .jpeg and .png files are allowed.`;
-            console.error(errorMessage);
-            
-            // Send message to DLQ (mailerQ) with details
-            const message = {
-              fileName: srcKey,
-              errorMessage: errorMessage,
-            };
+        if (!validExtensions.includes(fileExtension)) {
+          const errorMessage = `Invalid file type: ${fileExtension}. Only .jpeg and .png files are allowed.`;
+          console.error(errorMessage);
 
-            // Send message to DLQ (mailerQ) via SQS
-            const params = {
-              QueueUrl: mailerQueueUrl,
-              MessageBody: JSON.stringify(message),
-            };
+          // Send message to DLQ (mailerQueue) with error details
+          const message = {
+            fileName: srcKey,
+            errorMessage,
+          };
 
-            const sendMessageCommand = new SendMessageCommand(params);
-            await sqsClient.send(sendMessageCommand);
+          const params = {
+            QueueUrl: mailerQueueUrl,
+            MessageBody: JSON.stringify(message),
+          };
 
-            console.log(`Message sent to DLQ with error for file: ${srcKey}`);
-            continue; // Skip processing for invalid files
-          }
+          const sendMessageCommand = new SendMessageCommand(params);
+          await sqsClient.send(sendMessageCommand);
+          continue; // Skip processing for invalid files
+        }
 
-        // Extract the original file name from the key
-        const originalFileName = srcKey.split("/").pop();
-
+        const originalFileName = srcKey.split("/").pop();  // Extract the file name from the path
         try {
-          // Attempt to write the record to DynamoDB
-          await ddbDocClient.send(
-            new PutCommand({
-              TableName: tableName,
-              Item: { fileName: originalFileName },
-            })
-          );
-          console.log(`Recorded image: ${originalFileName}`);
+          if (messageRecord.eventName === "ObjectCreated:Put") {
+            // Handle file upload (PUT operation)
+            await ddbDocClient.send(
+              new PutCommand({
+                TableName: tableName,
+                Item: { fileName: originalFileName },
+              })
+            );
+          } else if (messageRecord.eventName === "ObjectRemoved:Delete") {
+            // Handle file deletion (DELETE operation)
+            await ddbDocClient.send(
+              new DeleteCommand({
+                TableName: tableName,
+                Key: { fileName: originalFileName },
+              })
+            );
+          } else {
+          }
         } catch (error) {
-          // Detailed logging of the error
-          console.error(`Failed to record image: ${originalFileName}`);
+          console.error(`Failed to process image: ${originalFileName}`);
           if (error instanceof Error) {
-            console.error('Error Details:', {
+            console.error("Error Details:", {
               message: error.message,
               stack: error.stack,
               name: error.name,
@@ -78,7 +82,7 @@ export const handler: SQSHandler = async (event) => {
               srcKey,
             });
           } else {
-            console.error('Unknown error:', error);
+            console.error("Unknown error:", error);
           }
         }
       }

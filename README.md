@@ -1,3 +1,3 @@
+s3 cp .\images\sunflower.jpeg s3://<bucket name>/<name of the image>
 
-
-aws s3 cp test.txt s3://a-bucket/test.txt --metadata '{"x-amz-meta-cms-id":"34533452"}'
+aws s3api delete-object --bucket <bucket name> --key <name of the image>

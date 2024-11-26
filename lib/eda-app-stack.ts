@@ -97,6 +97,11 @@ export class EDAAppStack extends cdk.Stack {
     new s3n.SnsDestination(newImageTopic)  // Changed
   );
 
+  imagesBucket.addEventNotification(
+    s3.EventType.OBJECT_REMOVED,
+    new s3n.SnsDestination(newImageTopic)  // Changed
+  );
+
   newImageTopic.addSubscription(
     new subs.SqsSubscription(imageProcessQueue)
   );

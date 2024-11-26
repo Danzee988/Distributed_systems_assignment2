@@ -16,76 +16,68 @@ const sqsClient = new SQSClient({ region });
 
 export const handler: SQSHandler = async (event) => {
   const ddbDocClient = createDDbDocClient();
-
-  // Log the incoming event for debugging purposes
   for (const record of event.Records) {
-    const recordBody = JSON.parse(record.body);
-    const snsMessage = JSON.parse(recordBody.Message);
+    try {
+      const recordBody = JSON.parse(record.body);
+      const snsMessage = JSON.parse(recordBody.Message);
 
-    if (snsMessage.Records) {
-      for (const messageRecord of snsMessage.Records) {
-        const s3e = messageRecord.s3;
-        const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
+      if (snsMessage.Records) {
+        for (const messageRecord of snsMessage.Records) {
 
-        // Validate the file type based on the file extension
-        const fileExtension = path.extname(srcKey).toLowerCase();
-        const validExtensions = [".jpeg", ".png"];
+          const s3e = messageRecord.s3;
+          const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
 
-        if (!validExtensions.includes(fileExtension)) {
-          const errorMessage = `Invalid file type: ${fileExtension}. Only .jpeg and .png files are allowed.`;
-          console.error(errorMessage);
+          // Validate the file type
+          const fileExtension = path.extname(srcKey).toLowerCase();
+          console.log("File extension:", fileExtension); // Log file extension
 
-          // Send message to DLQ (mailerQueue) with error details
-          const message = {
-            fileName: srcKey,
-            errorMessage,
-          };
+          const validExtensions = [".jpeg", ".png"];
+          if (!validExtensions.includes(fileExtension)) {
+            const errorMessage = `Invalid file type: ${fileExtension}. Only .jpeg and .png files are allowed.`;
+            console.error(errorMessage);
 
-          const params = {
-            QueueUrl: mailerQueueUrl,
-            MessageBody: JSON.stringify(message),
-          };
+            const message = {
+              fileName: srcKey,
+              errorMessage,
+            };
 
-          const sendMessageCommand = new SendMessageCommand(params);
-          await sqsClient.send(sendMessageCommand);
-          continue; // Skip processing for invalid files
-        }
+            const params = {
+              QueueUrl: mailerQueueUrl,
+              MessageBody: JSON.stringify(message),
+            };
 
-        const originalFileName = srcKey.split("/").pop();  // Extract the file name from the path
-        try {
+            const sendMessageCommand = new SendMessageCommand(params);
+            await sqsClient.send(sendMessageCommand);
+            continue; // Skip processing for invalid files
+          }
+
+          const originalFileName = srcKey.split("/").pop(); // Extract file name
+          console.log("Original file name:", originalFileName); // Log extracted file name
+
           if (messageRecord.eventName === "ObjectCreated:Put") {
-            // Handle file upload (PUT operation)
             await ddbDocClient.send(
               new PutCommand({
                 TableName: tableName,
                 Item: { fileName: originalFileName },
               })
             );
+            console.log(`Successfully added record to DynamoDB for: ${originalFileName}`);
           } else if (messageRecord.eventName === "ObjectRemoved:Delete") {
-            // Handle file deletion (DELETE operation)
             await ddbDocClient.send(
               new DeleteCommand({
                 TableName: tableName,
                 Key: { fileName: originalFileName },
               })
             );
+            console.log(`Successfully deleted record from DynamoDB for: ${originalFileName}`);
           } else {
-          }
-        } catch (error) {
-          console.error(`Failed to process image: ${originalFileName}`);
-          if (error instanceof Error) {
-            console.error("Error Details:", {
-              message: error.message,
-              stack: error.stack,
-              name: error.name,
-              originalFileName,
-              srcKey,
-            });
-          } else {
-            console.error("Unknown error:", error);
+            console.log(`Unhandled event name: ${messageRecord.eventName}`);
           }
         }
       }
+    } catch (error) {
+      console.error("Error processing record:", JSON.stringify(record, null, 2)); // Log record causing error
+      console.error("Error details:", error);
     }
   }
 };

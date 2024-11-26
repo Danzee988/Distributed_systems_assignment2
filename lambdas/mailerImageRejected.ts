@@ -13,36 +13,36 @@ if (!SES_EMAIL_TO || !SES_EMAIL_FROM || !SES_REGION) {
   );
 }
 
-type ContactDetails = {
+type ContactDetails = { 
   name: string;
   email: string;
   message: string;
 };
 
-const client = new SESClient({ region: SES_REGION });
+const client = new SESClient({ region: SES_REGION });                   // Create an SES client
 
 export const handler: SQSHandler = async (event: any) => {
   console.log("Event: ", JSON.stringify(event));
 
   // Loop through SQS records (messages from DLQ)
-  for (const record of event.Records) {
+  for (const record of event.Records) {                                // Loop through each record
     try {
       // Parse the SQS message body
-      const snsMessage = JSON.parse(record.body);
-      const { fileName, errorMessage } = snsMessage;  // Assuming this is structured correctly from the processImageFn
+      const snsMessage = JSON.parse(record.body);                     // Parse the outer body
+      const { fileName, errorMessage } = snsMessage;                  // Extract the file name and error message
 
       // Create email content
-      const { name, email, message }: ContactDetails = {
+      const { name, email, message }: ContactDetails = {              // Prepare email content
         name: "The Photo Album",
         email: SES_EMAIL_FROM,
         message: `Your image failed validation. Error: ${errorMessage}. The image file is: ${fileName}. Please review the image or try uploading a different one.`,
       };
 
       // Prepare email parameters
-      const params = sendEmailParams({ name, email, message });
+      const params = sendEmailParams({ name, email, message });       // Prepare email parameters
 
       // Send the rejection email
-      await client.send(new SendEmailCommand(params));
+      await client.send(new SendEmailCommand(params));                // Send the email
 
       console.log(`Rejection email sent for image: ${fileName}`);
     } catch (error) {
@@ -53,9 +53,9 @@ export const handler: SQSHandler = async (event: any) => {
 
 // Function to prepare the email parameters
 function sendEmailParams({ name, email, message }: ContactDetails): SendEmailCommandInput {
-  const parameters: SendEmailCommandInput = {
-    Destination: {
-      ToAddresses: [SES_EMAIL_TO],
+  const parameters: SendEmailCommandInput = {                       // Prepare email parameters
+    Destination: {                                                  // Destination email address
+      ToAddresses: [SES_EMAIL_TO],                                  // Recipient email address
     },
     Message: {
       Body: {

@@ -36,14 +36,14 @@ export const handler: SQSHandler = async (event) => {
             const errorMessage = `Invalid file type: ${fileExtension}. Only .jpeg and .png files are allowed.`;
             console.error(errorMessage);
 
-            const message = {
-              fileName: srcKey,
-              errorMessage,
+            const message = {                                           // Prepare message to send to mailer queue
+              fileName: srcKey,                                         // File name causing error
+              errorMessage,                                             // Error message
             };
 
-            const params = {
-              QueueUrl: mailerQueueUrl,
-              MessageBody: JSON.stringify(message),
+            const params = {                                            // Send message to mailer queue
+              QueueUrl: mailerQueueUrl,                                 // URL of the mailer queue
+              MessageBody: JSON.stringify(message),                     // Message to send to mailer queue
             };
 
             const sendMessageCommand = new SendMessageCommand(params);
@@ -51,10 +51,10 @@ export const handler: SQSHandler = async (event) => {
             continue; // Skip processing for invalid files
           }
 
-          const originalFileName = srcKey.split("/").pop(); // Extract file name
-          console.log("Original file name:", originalFileName); // Log extracted file name
+          const originalFileName = srcKey.split("/").pop();             // Extract file name
+          console.log("Original file name:", originalFileName);         // Log extracted file name
 
-          if (messageRecord.eventName === "ObjectCreated:Put") {
+          if (messageRecord.eventName === "ObjectCreated:Put") {        // Process only for new files
             await ddbDocClient.send(
               new PutCommand({
                 TableName: tableName,
@@ -62,14 +62,16 @@ export const handler: SQSHandler = async (event) => {
               })
             );
             console.log(`Successfully added record to DynamoDB for: ${originalFileName}`);
-          } else if (messageRecord.eventName === "ObjectRemoved:Delete") {
-            await ddbDocClient.send(
+
+          } else if (messageRecord.eventName === "ObjectRemoved:Delete") {// Process only for deleted files
+            await ddbDocClient.send(                                     // Delete record from DynamoDB
               new DeleteCommand({
                 TableName: tableName,
                 Key: { fileName: originalFileName },
               })
             );
             console.log(`Successfully deleted record from DynamoDB for: ${originalFileName}`);
+
           } else {
             console.log(`Unhandled event name: ${messageRecord.eventName}`);
           }
@@ -83,15 +85,14 @@ export const handler: SQSHandler = async (event) => {
 };
 
 function createDDbDocClient() {
-  const ddbClient = new DynamoDBClient({ region: process.env.REGION });
-  const marshallOptions = {
-    convertEmptyValues: true,
-    removeUndefinedValues: true,
-    convertClassInstanceToMap: true,
+  const ddbClient = new DynamoDBClient({ region: process.env.REGION });         // Create DynamoDB client
+  const marshallOptions = {                                                     // Set options to convert class instances to maps
+    removeUndefinedValues: true,                                                // Remove undefined values
+    convertClassInstanceToMap: true,                                            // Convert class instances to maps
   };
-  const unmarshallOptions = {
-    wrapNumbers: false,
+  const unmarshallOptions = {                                                   // Set options to convert maps to class instances
+    wrapNumbers: false,                                                         // Do not wrap numbers
   };
-  const translateConfig = { marshallOptions, unmarshallOptions };
-  return DynamoDBDocumentClient.from(ddbClient, translateConfig);
+  const translateConfig = { marshallOptions, unmarshallOptions };               // Set translation options
+  return DynamoDBDocumentClient.from(ddbClient, translateConfig);               // Create DynamoDB Document client
 }

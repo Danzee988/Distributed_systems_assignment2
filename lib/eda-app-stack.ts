@@ -15,55 +15,55 @@ export class EDAAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const imagesBucket = new s3.Bucket(this, "images", {
+    const imagesBucket = new s3.Bucket(this, "images", {                          // Create an S3 bucket
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       publicReadAccess: false,
     });
 
   // Creating image table------------------------------------------------------------ 
-    const imagesTable = new dynamodb.Table(this, "ImageTable", {
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      partitionKey: { name: "fileName", type: dynamodb.AttributeType.STRING },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      tableName: "Images",
-    });
+    const imagesTable = new dynamodb.Table(this, "ImageTable", {                  // Create a DynamoDB table
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,                          // Set billing mode to pay-per-request
+      partitionKey: { name: "fileName", type: dynamodb.AttributeType.STRING },    // Set the partition key
+      removalPolicy: cdk.RemovalPolicy.DESTROY,                                   // Set removal policy to destroy
+      tableName: "Images",                                                        // Set the table name
+    }); 
 
   // Integration infrastructure------------------------------------------------------
 
-  const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {
-    receiveMessageWaitTime: cdk.Duration.seconds(5),
+  const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {           // Create an SQS queue
+    receiveMessageWaitTime: cdk.Duration.seconds(5),                             // Set the receive message wait time
   });
 
   // Create the SQS queue
-  const metadataQueue = new sqs.Queue(this, "MetadataUpdatesQueue", {
-    receiveMessageWaitTime: cdk.Duration.seconds(5),
+  const metadataQueue = new sqs.Queue(this, "MetadataUpdatesQueue", {          
+    receiveMessageWaitTime: cdk.Duration.seconds(5), 
   });
 
-  const newImageTopic = new sns.Topic(this, "NewImageTopic", {
-    displayName: "New Image topic",
+  const newImageTopic = new sns.Topic(this, "NewImageTopic", {                  // Create an SNS topic
+    displayName: "New Image topic",                                             // Set the display name
   }); 
 
   const updateImageTopic = new sns.Topic(this, "UpdateImageTopic", {
     displayName: "Update Image topic",
   });
 
-  const mailerQ = new sqs.Queue(this, "mailer-queue", {
-    receiveMessageWaitTime: cdk.Duration.seconds(10),
+  const mailerQ = new sqs.Queue(this, "mailer-queue", {                        // Create an SQS queue
+    receiveMessageWaitTime: cdk.Duration.seconds(10),                          // Set the receive message wait time
   });
 
   // Lambda functions----------------------------------------------------------------
 
-  const processImageFn = new lambdanode.NodejsFunction(
+  const processImageFn = new lambdanode.NodejsFunction(                       // Create a Lambda function
     this,
     "ProcessImageFn",
     {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      entry: `${__dirname}/../lambdas/processImage.ts`,
-      timeout: cdk.Duration.seconds(15),
-      memorySize: 128,
-      deadLetterQueue: mailerQ, 
-      deadLetterQueueEnabled: true,
+      runtime: lambda.Runtime.NODEJS_18_X,                                    // Set the runtime
+      entry: `${__dirname}/../lambdas/processImage.ts` ,                      // Set the entry file
+      timeout: cdk.Duration.seconds(15),                                      // Set the timeout
+      memorySize: 128,                                                        // Set the memory size
+      deadLetterQueue: mailerQ,                                               // Set the dead letter queue
+      deadLetterQueueEnabled: true,                                           // Enable the dead letter queue
     }
   );
 
@@ -92,9 +92,9 @@ export class EDAAppStack extends cdk.Stack {
   });
 
   // S3 --> SQS-------------------------------------------------------------------
-  imagesBucket.addEventNotification(
-    s3.EventType.OBJECT_CREATED,
-    new s3n.SnsDestination(newImageTopic)  // Changed
+  imagesBucket.addEventNotification(                                          // Add an event notification
+    s3.EventType.OBJECT_CREATED,                                              // Set the event type
+    new s3n.SnsDestination(newImageTopic)                                     // Set the destination
   );
 
   imagesBucket.addEventNotification(

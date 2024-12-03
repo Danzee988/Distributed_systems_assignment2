@@ -38,6 +38,7 @@ export const handler: SQSHandler = async (event: any) => {
         message: `Your image failed validation. Error: ${errorMessage}. The image file is: ${fileName}. Please review the image or try uploading a different one.`,
       };
 
+      console.log(`message body is: `, message);   // Log the message body
       // Prepare email parameters
       const params = sendEmailParams({ name, email, message });       // Prepare email parameters
 
@@ -53,6 +54,7 @@ export const handler: SQSHandler = async (event: any) => {
 
 // Function to prepare the email parameters
 function sendEmailParams({ name, email, message }: ContactDetails): SendEmailCommandInput {
+  console.log("Sending email to:", SES_EMAIL_TO);                     // Log the recipient email address
   const parameters: SendEmailCommandInput = {                       // Prepare email parameters
     Destination: {                                                  // Destination email address
       ToAddresses: [SES_EMAIL_TO],                                  // Recipient email address
@@ -76,7 +78,7 @@ function sendEmailParams({ name, email, message }: ContactDetails): SendEmailCom
 
 // Function to generate HTML content for the email body
 function getHtmlContent({ name, email, message }: ContactDetails): string {
-  return `
+  const htmlContent = `
     <html>
       <body>
         <h2>Sent from: </h2>
@@ -86,6 +88,10 @@ function getHtmlContent({ name, email, message }: ContactDetails): string {
         </ul>
         <p style="font-size:18px">${message}</p>
       </body>
-    </html> 
+    </html>
   `;
+  
+  console.log("Generated HTML content:", htmlContent);  // Log the final HTML content
+  return htmlContent;
 }
+

@@ -30,26 +30,30 @@ export class EDAAppStack extends cdk.Stack {
     }); 
 
   // Integration infrastructure------------------------------------------------------
-
+   // Create the SQS queues
   const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {           // Create an SQS queue
     receiveMessageWaitTime: cdk.Duration.seconds(5),                             // Set the receive message wait time
   });
 
-  // Create the SQS queue
   const metadataQueue = new sqs.Queue(this, "MetadataUpdatesQueue", {          
     receiveMessageWaitTime: cdk.Duration.seconds(5), 
   });
 
+  const mailerQueueAdded = new sqs.Queue(this, "MailerQueueAdded", {
+    receiveMessageWaitTime: cdk.Duration.seconds(10),
+  });
+
+  const mailerQueueRejected = new sqs.Queue(this, "MailerQueueRejected", {
+    receiveMessageWaitTime: cdk.Duration.seconds(10),
+  });
+
+  // SNS topics
   const newImageTopic = new sns.Topic(this, "NewImageTopic", {                  // Create an SNS topic
     displayName: "New Image topic",                                             // Set the display name
   }); 
 
   const updateImageTopic = new sns.Topic(this, "UpdateImageTopic", {
     displayName: "Update Image topic",
-  });
-
-  const mailerQ = new sqs.Queue(this, "mailer-queue", {                        // Create an SQS queue
-    receiveMessageWaitTime: cdk.Duration.seconds(10),                          // Set the receive message wait time
   });
 
   // Lambda functions----------------------------------------------------------------
@@ -61,12 +65,13 @@ export class EDAAppStack extends cdk.Stack {
       entry: `${__dirname}/../lambdas/processImage.ts` ,                      // Set the entry file
       timeout: cdk.Duration.seconds(15),                                      // Set the timeout
       memorySize: 128,                                                        // Set the memory size
-      deadLetterQueue: mailerQ,                                               // Set the dead letter queue
+      deadLetterQueue: mailerQueueRejected,                                   // Set the dead letter queue
       deadLetterQueueEnabled: true,                                           // Enable the dead letter queue
       environment: {
         DYNAMODB_TABLE: imagesTable.tableName,                                // Set the environment variables
         REGION: this.region,                                                  // Set the region
-        MAILER_QUEUE_URL: mailerQ.queueUrl,                                   // Set the mailer queue URL
+        MAILER_QUEUE_ADDED_URL: mailerQueueAdded.queueUrl,                    // Set the added mailer queue URL
+        MAILER_QUEUE_REJECTED_URL: mailerQueueRejected.queueUrl,              // Set the rejected mailer queue URL
       },
     }
   );
@@ -111,7 +116,11 @@ export class EDAAppStack extends cdk.Stack {
   );
 
   newImageTopic.addSubscription(
-    new subs.SqsSubscription(mailerQ)
+    new subs.SqsSubscription(mailerQueueAdded)
+  );
+
+  newImageTopic.addSubscription(
+    new subs.SqsSubscription(mailerQueueRejected)
   );
 
   updateImageTopic.addSubscription(
@@ -124,10 +133,15 @@ export class EDAAppStack extends cdk.Stack {
     maxBatchingWindow: cdk.Duration.seconds(5),
   });
 
-  const newImageMailEventSource = new events.SqsEventSource(mailerQ, {
+  const newImageMailEventSourceAdded = new events.SqsEventSource(mailerQueueAdded, {
     batchSize: 5,
     maxBatchingWindow: cdk.Duration.seconds(5),
   }); 
+
+  const newImageMailEventSourceRejected = new events.SqsEventSource(mailerQueueRejected, {
+    batchSize: 5,
+    maxBatchingWindow: cdk.Duration.seconds(5),
+  });
 
   updateTableFn.addEventSource(new events.SqsEventSource(metadataQueue, {
     batchSize: 5,
@@ -135,8 +149,8 @@ export class EDAAppStack extends cdk.Stack {
   }));
 
   processImageFn.addEventSource(newImageEventSource);
-  mailerImageAddedFn.addEventSource(newImageMailEventSource);
-  mailerImageRejectedFn.addEventSource(newImageMailEventSource);
+  mailerImageAddedFn.addEventSource(newImageMailEventSourceAdded);
+  mailerImageRejectedFn.addEventSource(newImageMailEventSourceRejected);
 
   // Permissions-------------------------------------------------------------------
   imagesTable.grantWriteData(processImageFn);
@@ -170,7 +184,9 @@ export class EDAAppStack extends cdk.Stack {
   // Environment variables----------------------------------------------------------
   processImageFn.addEnvironment('DYNAMODB_TABLE', imagesTable.tableName);
   processImageFn.addEnvironment('REGION', this.region);
-  processImageFn.addEnvironment('MAILER_QUEUE_URL', mailerQ.queueUrl);
+  processImageFn.addEnvironment('MAILER_QUEUE_ADDED_URL', mailerQueueAdded.queueUrl);
+  processImageFn.addEnvironment('MAILER_QUEUE_REJECTED_URL', mailerQueueRejected.queueUrl);
+
 
   // Output------------------------------------------------------------------------
   

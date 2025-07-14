@@ -1,25 +1,29 @@
-## Assignment 2 (EDA app) - Distributed Systems.
+# Distributed Image Processing & Notification System
 
-__Name:__ Daniel Wolski
+A distributed system application for image processing, email notifications, and table updates, built in phases. This project demonstrates asynchronous processing, fault-tolerant mailer functionality, and image pipeline integration.
 
-__YouTube Demo link__ - [\[The URL of the video demonstration of the app.\]](https://youtu.be/AYByBNqksrs)
+### 🎥 Demo
+[![Demo Video](https://img.youtube.com/vi/AYByBNqksrs/0.jpg)](https://AYByBNqksrs)
+
+### 🔄 Overview
+The EDA app processes incoming requests for image handling and email responses. It’s built in three progressive phases, each adding more complex distributed functionalities:
 
 ### Phase 1.
 
-+ Confirmation Mailer - Fully implemented.
-+ Rejection Mailer - Fully implemented.
-+ Log Image -  Fully implemented. 
-+ process Image - Fully implemented.
++ Confirmation Mailer - ✔️ Fully implemented.
++ Rejection Mailer - ✔️ Fully implemented.
++ Log Image - ✔️ Fully implemented. 
++ process Image - ✔️ Fully implemented.
 
 ### Phase 2.
 
-+ Confirmation Mailer - Fully implemented.
-+ Rejection Mailer - Fully implemented 
-+ Log Image - Fully implemented 
-+ Update Table -  Fully implemented.
++ Confirmation Mailer - ✔️ Fully implemented.
++ Rejection Mailer - ✔️ Fully implemented 
++ Log Image - ✔️ Fully implemented 
++ Update Table - ✔️ Fully implemented.
 
 ### Phase 3.
 
-+ Confirmation Mailer - Not implemented.
-+ Process Image (Add/Delete Image)- Fully implemented.
-+ Update Table - Fully implemented.
++ Confirmation Mailer - ❌ Not implemented.
++ Process Image (Add/Delete Image)- ✔️ Fully implemented.
++ Update Table - ✔️ Fully implemented.

@@ -1,4 +1,4 @@
-# Distributed Image Processing & Notification System
+# 📸⚙️📧 Distributed Image Processing & Notification System
 
 A distributed system application for image processing, email notifications, and table updates, built in phases. This project demonstrates asynchronous processing, fault-tolerant mailer functionality, and image pipeline integration.
 
